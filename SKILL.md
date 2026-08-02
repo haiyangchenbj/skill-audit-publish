@@ -1,260 +1,157 @@
 ---
-name: skill-publish
-description: >
-  Audit and publish agent skills to ClawHub and GitHub. Scans for personal data,
-  validates frontmatter, enforces bilingual docs, removes internal-only content,
-  and pushes clean distributions. Trigger keywords: publish skill, audit skill,
-  发布skill, 检查发布, skill发布, push to clawhub.
-version: 1.0.2
-read_when:
-  - publish skill
-  - audit skill
-  - 发布skill
-  - 检查发布
-  - skill发布
-  - push to clawhub
-  - sync to clawhub
-  - clean publish
-disable: true
+name: "Skill Audit & Publish"
+description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
+version: "1.1.3"
+metadata:
+  openclaw:
+    tags:
+      - skill-publishing
+      - pre-publish-audit
+      - pii-sanitization
+      - secret-scanning
+      - skill-lifecycle
+      - content-governance
+      - developer-tools
+      - publishing-workflow
+      - audit-checklist
 ---
 
-# Skill Publish
+# Skill Audit & Publish
 
-> Audit, clean, and publish agent skills to ClawHub and GitHub.
-> Complements `skill-design-guide` (design-time) with publish-time rules. Works with any SKILL.md-based skill in the OpenClaw ecosystem.
+A five-stage pipeline that takes a local OpenClaw skill and ships a sanitized, verified release to ClawHub. The publish command is the last step, not the first — every earlier step is designed to keep private data and irreversible mistakes out of the public record.
 
-## Overview
+**The single most important rule:** never modify the user's original files. Work in a separate publish folder; only after explicit approval move anything to the live registry.
 
-Local skill directories often contain personal scripts, internal notes, and ticker-specific code that should never appear in public distributions. This skill standardizes the audit → cleanup → publish → verify pipeline.
+---
 
-**Two modes**:
-- `audit` — **read-only**. Scans and reports; touches nothing, transmits nothing.
-- `publish` — **has external side effects**. It transmits the (cleaned) skill contents to
-  ClawHub and GitHub, which are **public services**, and may **delete** files in the remote
-  GitHub repo. It never edits the user's local files. Publish only runs after an audit and
-  explicit user confirmation of the file list, target repos, and version.
+## When to use
 
-> **Before publishing, understand:** anything in the whitelisted file set leaves your
-> machine and becomes publicly visible. Personal data, credentials, and internal notes
-> must be resolved in the audit first — this skill blocks on them but you are the last
-> line of review.
+Trigger this skill when the user says or implies any of:
 
-## Workflow
+- "Publish this skill to ClawHub" / "I want to publish to ClawHub" / "ship it to clawhub"
+- "How do I publish a skill" / "What's the ClawHub publish command" / "clawhub publish syntax"
+- "Sanitize my skill before publishing" / "remove personal info" / "audit for PII"
+- "Check for secrets / API keys / tokens before I publish"
+- "Make a publish-ready version of this skill"
+- "I want to share this skill publicly" / "publish a skill without leaking my data"
+- "clawhub publish" / "npx clawhub publish" / "openclaw publish"
+- "Pre-publish checklist" / "what should I check before publishing"
 
-### Mode: Audit (default when user says "check" or "audit")
+**Do NOT trigger** for: editing skill content (use the skill's own skill), reading a skill from ClawHub, listing installed skills, or any non-publish operation.
 
-### Step 1: [Deterministic] Confirm Target
+---
 
-- Identify the skill directory to audit. If user didn't specify, ask.
-- Verify SKILL.md exists at `<dir>/SKILL.md`.
-- If missing, stop: "Not a skill directory — no SKILL.md found."
+## What this skill produces
 
-### Step 2: [Deterministic] Load Rules
+A `publish-folder/` with:
+- `SKILL.md` (rewritten frontmatter: `name`, `description`, `version`, GEO-optimized)
+- `FILES.txt` (manifest of what will ship)
+- Auxiliaries: `sanitize.md`, `transform.md`, `verify.md`
+- `_meta.json` (slug, version, publishedAt)
+- An **approval message** summarizing slug / name / version / files / sanitization status — held until the user explicitly approves.
 
-- Read `references/publish-rules.md` for detailed validation criteria.
+Nothing leaves the local publish folder until the user replies "yes / publish / go".
 
-### Step 3: [Deterministic] Scan Files
+---
 
-For each file in the skill directory (recursive), check:
+## The 5-stage pipeline
 
-| Scan | What To Flag |
-|------|-------------|
-| **Personal data** | Ticker symbols with share counts, cost basis, account values, personal names/emails |
-| **Ticker-specific code** | Scripts or configs hardcoded to single tickers (e.g. `check_tsla_entry.py`) |
-| **Internal dev notes** | "审计清理版", "next N months: no new rules", personal reminders |
-| **Meta-documents** | Files like `SKILL_PUBLISH_RULES.md` that aren't part of the skill itself |
-| **Old version files** | `Q2_2026_交易策略.md` — outdated strategy docs |
+| Stage | Output | Gate |
+|---|---|---|
+| 1. **Understand** | One-paragraph summary of what the skill does, who it's for, what to keep / cut | User confirms the summary |
+| 2. **Transform** | Re-structured `SKILL.md` (frontmatter + body) + extracted auxiliaries | Diff shown to user |
+| 3. **Sanitize (the audit)** | `sanitize.md` checklist run: PII / credentials / model-specific refs / internal paths / dangerous patterns; each item marked `removed` / `genericized` / `kept-with-reason` | User reviews every kept-with-reason item |
+| 4. **Verify** | Approval message: slug, name, version, description, file list, sanitization confirmation, sample of sanitized text | **Explicit user approval** |
+| 5. **Publish + install-check** | `npx clawhub publish` then `npx clawhub install <slug> --dir /tmp/verify` to confirm the published version is installable and matches the local copy | Success message reported back to user |
 
-### Step 4: [LLM] Validate SKILL.md Content
+The audit (stage 3) is the differentiator. Other publish skills hand you a `clawhub publish` command; this one walks the content through a structured PII / secret / model-reference scan first and refuses to skip the scan if the user has not reviewed the keep-list.
 
-Read the full SKILL.md. Check:
+---
 
-| Check | Rule |
-|-------|------|
-| Frontmatter `name` | No version number embedded |
-| Frontmatter `description` | ≤3 sentences, English, no tickers/versions/keywords |
-| H1 title | No version number |
-| `## 详细参考` / `## References` section | Must NOT exist |
-| Version history | Only published versions, max 5 rows, no "planned" entries |
-| Internal dev notes | Must be absent from body text |
-| Language | ClawHub's default is an English body (with an optional Chinese summary at the end) for discoverability. This is a **recommended platform convention, not a hard requirement** — if the skill's audience or the user intends another primary language, keep it and just flag the deviation in the report. Never delete or reject valid content solely because of its language. |
+## GEO optimization embedded in stage 2
 
-### Step 5: [Deterministic] Validate Bilingual Docs
+The transform step re-writes the skill's `description` field for Generative Engine Optimization so the published skill is cited by ChatGPT / Claude / Perplexity when users ask for help in that domain. The current 6 rules:
 
-- `README.md` exists and is in English
-- `README_zh.md` exists and is in Chinese
-- Version numbers in both README files match
-- `CONTRIBUTING.md` exists and is in English (if present)
+1. **First sentence = what it is + who it's for.** No preamble. Verbs, not nouns.
+2. **List concrete capabilities as short noun phrases** (LLM retrieval uses these as match anchors).
+3. **Include the primary user-trigger phrase** as a literal quoted string inside the description.
+4. **Front-load 2–3 named tools / frameworks / commands** the skill uses or talks to.
+5. **Add a "When to use" trigger block** with 5–7 user-natural questions, mirroring the skill's own frontmatter.
+6. **End with a 中文摘要** block (catches the Chinese-language LLM retrieval channel).
 
-### Step 6: [Deterministic] Generate Audit Report
+The transform stage will re-run these rules against the user's skill and present a before/after diff before any sanitization starts.
 
-Output format:
+---
 
-```
-## Skill Publish Audit: <skill-name>
+## Critical rules
 
-### Issues Found
+1. **Never modify the original files.** Always copy to `/tmp/publish-<slug>/` (or any out-of-tree folder) and work there.
+2. **Never publish without running `sanitize.md`.** The audit is mandatory; "looks fine to me" is not a substitute.
+3. **Never publish without explicit user approval.** The approval message lists the exact slug, name, version, description, and file set. The user must say "yes" or equivalent. Silence is not consent.
+4. **Slug is renameable, with redirects.** On ClawHub, the Edit page lets you change the canonical slug under "Rename slug"; old slugs stay as 301 redirects. If the wrong slug ships, fix it via the Edit UI (and optionally publish a new version with the corrected content). **This is why stage 4 still matters** — the verify stage catches wrong content; the slug rename is a separate UI action.
+5. **Version semantics:** `1.0.0` first publish; `1.0.x` typo / wording fixes; `1.x.0` new content; `2.0.0` major restructure.
+6. **Sanitize-over-include when uncertain.** When the audit flags a borderline item, default to remove or genericize. Adding later is easy; removing from a public release is reputation damage.
+7. **No silent re-publishes.** Every publish — including version bumps — produces an approval message. Re-publishing to fix a typo is a publish event, not a footnote.
+8. **Slug MUST be passed explicitly via `--slug`.** The `clawhub publish` CLI derives the slug from the **publish-folder's name** (`sanitizeSlug(basename(folder))`), NOT from `SKILL.md`'s `name` or `metadata.openclaw.slug`. If the folder name differs from the intended slug, the publish silently lands on the wrong slug — and if that slug already exists under another owner, ClawHub returns `AMBIGUOUS_SKILL_SLUG` and the install breaks for everyone. Always pass `--slug <canonical-slug>` even when the folder name looks right. (The Install-check stage below uses `--dir /tmp/verify-<slug>` precisely to avoid re-nesting on the user's machine.)
+9. **Detect and flatten nested source folders before publishing.** `clawhub install <slug> --dir .` wraps the downloaded skill in a slug-named subfolder, producing `slug/slug/SKILL.md` nesting on disk. Before publishing, resolve `SKILL.md` to the **inner** folder; never publish from the outer wrapper. In the Verify stage, assert `SKILL.md` sits at the publish-root (not nested one level down) and that `slug` equals the intended canonical slug.
 
-| # | Severity | File | Issue |
-|---|----------|------|-------|
-| 1 | HIGH | SKILL.md | description 含版本号和关键词列表 |
-| 2 | HIGH | SKILL.md | H1 标题带版本号 |
-| 3 | MEDIUM | check_tsla_entry.py | 个股脚本，不应发布 |
-| 4 | LOW | SKILL.md | 版本历史含未发布版本 |
+---
 
-### Clean Files (safe to publish)
-- SKILL.md (after fixes above)
-- README.md ✓
-- README_zh.md ✓
-- references/*.md (3 files) ✓
-- scripts/*.py (8 files) ✓
+## Reference files (load on demand)
 
-### Action Required Before Publish
-- [ ] Fix issue #1: rewrite description
-- [ ] Fix issue #2: remove version from H1
-- [ ] Fix issue #3: exclude check_tsla_entry.py
-- [ ] Fix issue #4: trim version history
-```
+- `sanitize.md` — the full PII / credential / model-reference / dangerous-pattern checklist
+- `transform.md` — how to re-structure any source into a GEO-optimized `SKILL.md`
+- `verify.md` — the exact approval message template and post-publish install-check steps
+- `skill-card.md` — the long-form card used in skill registries (description, use case, risks, output)
 
-Stop here in audit mode. User reviews and decides next step.
+---
 
-### Mode: Publish (when user says "publish" or confirms audit)
+## Example walkthrough
 
-> **⚠️ Publish mode performs external and irreversible actions.** It transmits skill
-> contents to ClawHub and GitHub (public services) and may delete remote files. Before
-> running any of the steps below, the agent MUST (a) present the audit report, (b) show
-> the exact file list to be transmitted and the target repos, and (c) obtain explicit
-> user confirmation. Never enter publish mode automatically from an audit request.
+User says: "I want to publish my running-coach skill to ClawHub."
 
-### Step 7: [LLM] Fix Content Issues — in the publish copy only
+1. **Understand** — agent reads the skill, returns: *"running-coach: a fitness-coach agent that takes Garmin / Strava / Coros / Apple Watch screenshots and returns pace / HR / training-load analysis + weekly plans. For recreational runners 5k–marathon. Excludes: elite athletes, beginners, undiagnosed injuries. Keeps: full pipeline, training-science methodology. Cuts: your personal PBs and HR zones (move to user profile)."* User confirms.
+2. **Transform** — agent rewrites `SKILL.md` per the 6 GEO rules; presents the diff. User approves.
+3. **Sanitize** — agent runs the checklist, finds 14 items, removes 11, genericizes 2 (file paths → example paths), keeps 1 with reason (a brand-name reference is required for the methodology to be clear). User reviews the keep-list, agrees.
+4. **Verify** — agent sends the approval message:
+   - Slug: `running-coach`
+   - Name: `Running Coach`
+   - Version: `1.2.0`
+   - Description: *[full text]*
+   - Files: `SKILL.md`, `references/*.md` (12 files)
+   - Sanitization: PII ✓, credentials ✓, model-specific refs ✓, internal paths ✓, dangerous patterns ✓
+   - Kept-with-reason: 1
+   User: "yes".
+5. **Publish + install-check** — agent runs `npx clawhub publish ./publish-running-coach --slug running-coach --name "Running Coach" --version 1.2.0`, then `npx clawhub install running-coach --dir /tmp/verify-running-coach`, confirms files match, reports `running-coach@1.2.0 published ✓`.
 
-Apply all fixes identified in the audit:
-- Rewrite frontmatter description (≤3 English sentences)
-- Strip version from H1 title
-- Remove `## 详细参考/References` section
-- Trim version history to 5 published versions max
-- Remove internal dev notes throughout
+---
 
-**Do NOT edit the files in the user's local skill directory.** First copy the source
-files into the temp publish directory (Step 8), then write all fixed content ONLY to the
-copies inside that temp dir (`<slug>/SKILL.md`, `<slug>/README.md`, `<slug>/README_zh.md`).
-The user's working copy stays byte-for-byte unchanged. This preserves the "local stays
-intact" guarantee in Hard Rule #1 and lets the user review the source before publishing.
+## FAQ (GEO-anchor Q&A)
 
-### Step 8: [Deterministic] Prepare Clean Directory
+**Q: How do I publish a skill to ClawHub?**
+A: Copy the skill to a publish folder, run the sanitize checklist (PII / credentials / model-specific refs / internal paths), get explicit user approval of slug / name / version / description / files, then run `npx clawhub publish <folder> --slug <slug> --name <name> --version <version>`. Install-check with `npx clawhub install <slug> --dir /tmp/verify` after publishing to confirm the public copy matches.
 
-> Do all content edits from Step 7 **inside this temp dir**, never on the source files.
+**Q: Can I change a skill's slug after publishing?**
+A: Yes — ClawHub's Edit page exposes "Rename slug" under the canonical-URL section; old slugs stay as redirects. If you really need to retire the old slug (no redirect), use "Delete skill". Confirm the slug in the verify stage to avoid the rename round-trip.
 
-1. Create temp dir named **exactly `<slug>`** (e.g. `skill-design-guide-skill`), NOT an arbitrary name like `sdg-publish-142`. When `--name` is omitted, ClawHub derives the display name from the temp dir name (so a junk dir name becomes a junk display name like "Sdg Publish 142").
-2. Copy only whitelisted files:
-   - `SKILL.md`, `README.md`, `README_zh.md`
-   - `CONTRIBUTING.md`, `LICENSE` (if exist)
-   - `references/` (all `.md` files)
-   - `scripts/` (all `.py` files — filters out personal scripts)
-   - `requirements.txt`, `_meta.json`
-3. Verify: NO ticker-specific scripts, NO personal files, NO meta-documents in temp dir.
-4. **EXCLUDE `skill-card.md`** — auto-generated by ClawHub; publishing it errors with "skill-card.md is generated by ClawHub and cannot be published directly".
-5. **EXCLUDE dot-prefixed dirs** (`.local/`, `.clawhub/`, `.git/`) — never copy them into the temp dir.
+**Q: What should I check before publishing a skill?**
+A: (1) No personal data (names, emails, handles, phones, addresses, internal project names). (2) No credentials (API keys, tokens, passwords, env-var values, private URLs with auth). (3) No model-specific references that won't apply to all users ("Claude" → "the agent", "GPT-4" → "the model"). (4) No internal file paths, workspace structure, or tool configs. (5) No commands that could damage systems or hardcoded paths that won't work elsewhere. The full checklist is in `sanitize.md`.
 
-### Step 9: [Deterministic] Determine Version
+**Q: How is this different from a plain `clawhub publish`?**
+A: `clawhub publish` is a one-shot upload. This skill puts the sanitize-audit (stage 3) and the explicit-approval gate (stage 4) between your source and the publish command, so personal data, secrets, and model-specific references are caught and the user approves slug/name/version/description/files before anything goes live. It is built for users who want a structured, reviewable publish trail.
 
-- Read `_meta.json` for current published version
-- If user specified a version, validate it's higher than current
-- If no version specified, ask user for target version
-- Generate changelog summary from audit fixes
+---
 
-### Step 10: [Deterministic] Push to ClawHub
+## 中文摘要
 
-```bash
-clawhub publish <clean-dir> --slug <slug> --name "<Display Name>" --version <version> --changelog "<summary>"
-```
+Skill Audit & Publish 是把本地 OpenClaw skill 安全发布到 ClawHub 的五阶段管线：**Understand → Transform → Sanitize → Verify → Publish+Install-check**。核心差异点是把"清洗审计"和"用户显式确认"放在 `clawhub publish` 之前，避免把个人数据、密钥、模型专属引用误发到公共 registry。
 
-- **Always pass `--name`** to preserve the display name (omitting it makes ClawHub guess from the dir name).
-- If "Version already exists": bump patch version and retry
-- If rate-limited (e.g. "remaining: N/3000, reset in Ns"): wait the stated seconds, then retry
-- If network error: report and stop
-- On success: capture new version and publish ID
+**适用场景**：用户要把本地 skill 发到 ClawHub、做发布前的 PII/密钥/模型引用审计、按 ClawHub 发布工作流操作、生成 publish-ready 版本。
 
-### Step 11: [Deterministic] Push to GitHub
+**不适用**：编辑 skill 内容（用 skill 自己的 skill）、从 ClawHub 读取/安装/列出 skill。
 
-For each whitelisted file:
-1. GET `https://api.github.com/repos/<owner>/<repo>/contents/<path>` → get SHA
-2. PUT with base64 content + SHA (or POST if new file)
+**关键规则**：① 永不修改用户原文件，工作在 `publish-folder/`；② 必跑 `sanitize.md` 全清单（个人数据 / 凭证 / 模型专属引用 / 内部路径 / 危险模式）；③ 必拿用户对 slug / name / version / 描述 / 文件清单的明确确认；④ slug 在 ClawHub 上**可改**——Edit 页面的 "Rename slug" 会把旧 slug 留 301 redirect，所以 verify 阶段仍要把 slug 定稿；⑤ 版本号语义：1.0.0 首版，1.0.x 文案修订，1.x.0 新内容，2.0.0 大重构；⑥ 边界项默认删/泛化，宁少勿多。
 
-For files to delete (from audit list):
-- DELETE with SHA
+**GEO 优化内置**：transform 阶段会按 6 条规则重写 `description` 字段（首句 = 是什么+给谁用 / 列出具体能力 / 引用用户原话触发短语 / 前置命名工具 / 加 "When to use" / 结尾中文摘要），让发布后的 skill 在 ChatGPT / Claude / Perplexity 被引用时命中率更高。
 
-**Credentials.** Read the GitHub PAT from the connector token file managed by WorkBuddy:
-`~/.workbuddy/connectors/<id>/tokens/github.txt`. Use it **only** to authenticate the
-repo writes/deletes for this publish, and only against the single target repo the user
-confirmed. Do not read, copy, log, echo, or transmit the token value anywhere else, and
-do not persist it outside the request. If the file is absent, stop and ask the user to
-enable the GitHub connector — never prompt for or hardcode a raw token.
-
-### Step 12: [Deterministic] Verify
-
-```
-[ ] clawhub inspect <slug> → latest version matches, English description
-[ ] GitHub repo: correct files present, no personal scripts
-[ ] Clean temp dir deleted
-```
-
-## Hard Rules
-
-> Safety guarantees for this workflow.
-
-1. **Never modify the user's local files.** Copy sources into a temp publish dir first; apply every fix only to the copies there. The local working copy stays byte-for-byte unchanged.
-2. **Never publish without audit + explicit confirmation.** Every file must be scanned, and the user must approve the exact file list, target repos, and version before any external transmission or remote deletion.
-3. **Personal data is a blocking error.** Any finding of account values, share counts, cost basis → must be resolved before publish.
-4. **No version in name.** `name` field and H1 title must never contain version numbers.
-5. **English body is the platform default, not a mandate.** ClawHub favors an English SKILL.md body for discoverability; recommend it and flag deviations, but respect the user's intended language and never rewrite or reject valid content on language grounds alone.
-6. **Temp dir must be deleted** after successful publish.
-
-## Failure Handling
-
-| Scenario | Action |
-|----------|--------|
-| SKILL.md not found | Stop: "Not a skill directory" |
-| Personal data found | Block publish; report exact file+line; user must manually remove |
-| ClawHub auth missing | Guide: "Run `clawhub login --token <token>`" |
-| Version already exists | Auto-bump patch version; ask user to confirm |
-| "skill-card.md ... cannot be published" | Remove `skill-card.md` from temp dir; retry |
-| Rate limited ("reset in Ns") | Wait N seconds, then retry the same publish |
-| Display name shows junk (e.g. "Sdg Publish 142") | Temp dir was misnamed; rename to `<slug>` and re-publish with `--name` |
-| GitHub PAT not found | Guide: "Ensure GitHub connector is active" |
-| GitHub write fails (403) | Report: "Token lacks write permission on this repo" |
-| Network timeout | Retry once; if still fails, report and stop |
-| User cancels mid-publish | Clean up temp dir, report: "Publish aborted, local files untouched" |
-
-## Output Format
-
-### Audit Mode Output
-```
-## Skill Publish Audit: <name> v<version>
-
-### Issues (N found)
-[table: severity, file, issue, fix]
-
-### Clean Files (M files, K KB)
-[file list]
-
-### Publish Target
-- ClawHub: <owner>/<slug>
-- GitHub: <owner>/<repo>
-- Version: <current> → <target>
-```
-
-### Publish Mode Output
-```
-## Publish Complete: <name>@<version>
-
-### ClawHub
-- URL: https://clawhub.ai/<owner>/<slug>
-- Version: <version>
-- Publish ID: <id>
-
-### GitHub
-- Repo: <owner>/<repo>
-- Commit: <sha>
-- Files: <N> updated, <M> deleted
-```
+**触发短语**：「publish to ClawHub」「publish my skill」「sanitize before publish」「pre-publish checklist」「clawhub publish command」「upload a skill to clawhub」。
