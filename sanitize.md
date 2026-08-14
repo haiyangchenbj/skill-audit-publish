@@ -99,3 +99,21 @@ Findings quote specific lines. Identify what the scanner actually objects to:
 If ClawHub moderation shows `CLEAN` but SkillSpector (or similar third-party scanner) still reports findings, **the skill is already live and installable**. SkillSpector findings are informational — they do not block ClawHub moderation. Ask the user whether to:
 1. Accept the findings (skill is live, moderation is CLEAN)
 2. Continue fixing (only worthwhile if findings indicate real risk to users)
+
+### Step 5: Rollback strategy (when fixes make things worse)
+
+If 2+ patch attempts have been made and findings are **increasing** (new findings appeared that weren't in the original version), the fixes themselves are the problem. Each added field (trigger keywords, read_when, not_for, disclaimers, Chinese triggers) gives the scanner **more surface to analyze** and **more patterns to match against**.
+
+**Rollback procedure:**
+1. Identify the last version that passed SkillSpector cleanly (or had the fewest findings)
+2. Take that version's **frontmatter** (description, read_when, not_for — all of it)
+3. Take the current version's **body** (if a scope-level fix like Step 8 rename was already made, keep it — it's a real improvement)
+4. Publish as a new version with changelog: "Rollback frontmatter to [version] original; retain [version] scope fix"
+5. **Do not re-add** trigger keywords, Chinese triggers, NOT disclaimers, read_when narrowing, or not_for items — these are what triggered the new findings
+
+**Key insight:** A clean, minimal frontmatter (just name + description + version) has the **smallest attack surface**. Every additional field is a potential finding. If a skill passed at version X, the fastest path to passing again is to return to X's frontmatter, not to add more guards.
+
+**Real example (social-persona-profiling):**
+- 1.0.4: passed SkillSpector (no findings)
+- 1.0.5-1.0.10: added trigger keywords, read_when, not_for, disclaimers, Chinese triggers → findings **increased** to 10+
+- 1.0.11: rolled back frontmatter to 1.0.4 original + retained 1.0.8 body scope fix → **passed**
