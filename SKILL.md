@@ -1,7 +1,9 @@
 ---
 name: "Skill Audit & Publish"
+slug: skill-audit-publish
+displayName: "Skill Audit & Publish"
 description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
-version: "1.1.3"
+version: "1.2.0"
 metadata:
   openclaw:
     tags:
