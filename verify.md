@@ -1,4 +1,3 @@
-# Pre-Publish Verification
 
 **Never publish without completing this process.**
 
