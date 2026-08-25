@@ -1,4 +1,3 @@
-# Transforming Content to Skill Format
 
 Reference — how to convert any knowledge into proper skill structure.
 
