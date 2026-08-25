@@ -86,10 +86,16 @@ clawhub publish <clean-dir> --slug <slug> --version <semver> --changelog "<one-l
 - If overriding `latest` tag, version number must be higher than current latest
 
 ### GitHub
-Use GitHub API with PAT for file operations. 
-- Get file SHA → PUT with base64 content + SHA
-- New files: PUT without SHA
-- Delete: DELETE with SHA
+Use the GitHub REST API with a PAT for all repo operations (create + file push).
+
+- **PAT location**: `~/.workbuddy/connectors/default/tokens/github.txt` (classic PAT, `ghp_` prefix). Read from file; never print it into chat.
+- **Do NOT use the GitHub connector (MCP App) for create/write.** The connector is a GitHub App whose integration token **cannot create repos in a personal namespace** — `create_repository` fails with 403 "Resource not accessible by integration". Connector is fine for reads; use PAT for create/write.
+- **Create repo**: `POST https://api.github.com/user/repos`, body `{name, description, private:false, auto_init:true}`, header `Authorization: token <PAT>`.
+- **File ops**:
+  - Get file SHA → PUT with base64 content + SHA (update existing)
+  - New files: PUT without SHA
+  - Delete: DELETE with SHA
+- Prefer a Node.js `https.request` script over `curl` in Git Bash (avoids pipe/TLS quirks).
 
 ### Optimal strategy
 1. Create clean temp directory (copy whitelisted files only)
