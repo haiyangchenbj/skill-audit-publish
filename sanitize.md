@@ -1,6 +1,24 @@
 
 **Run this BEFORE any publish.** Public skills are permanent.
 
+## Release Type Gate (run first)
+
+Before starting, classify the release — the pipeline strictness differs:
+
+| Type | Definition | Required stages |
+|---|---|---|
+| **New skill publish** | Slug not yet on ClawHub | **Full 5 stages**: Understand → Transform → Sanitize → Verify (user approval message) → Publish + Install-check |
+| **Content update** | New references / new sections / scope change | Sanitize → Verify (user approval) → Publish |
+| **Patch (wording / metadata)** | Description tweak, frontmatter fix, version bump only | Sanitize → Publish (approval message optional for trusted repeat patches) |
+
+**New-skill extra checks (mandatory):**
+1. `clawhub inspect <slug>` — must return "Skill not found" (not AMBIGUOUS) before publish. A slug collision creates an unfixable ghost record.
+2. Structure completeness per skill-design-guide: Hard Rules, Failure Handling, Output Format, steps tagged `[Deterministic]`/`[LLM]`.
+3. Chinese summary + trigger keywords appended to the description (skillhub search indexes description only, not description_zh).
+
+**Frozen skills (do not update unless necessary):**
+- `social-persona-profiling` — any update risks re-triggering SkillSpector alerts (its third-party-profiling capability sits on the policy line). If an update is unavoidable, keep frontmatter minimal and change body only.
+
 ## Personal Data
 
 Remove or genericize:
