@@ -1,6 +1,9 @@
+---
 name: "Skill Audit & Publish"
+slug: skill-audit-publish
+displayName: "Skill Audit & Publish"
 description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
-version: "1.4.0"
+version: "1.5.0"
 metadata:
   openclaw:
     tags:
@@ -88,11 +91,15 @@ The transform stage will re-run these rules against the user's skill and present
 2. **Never publish without running `sanitize.md`.** The audit is mandatory; "looks fine to me" is not a substitute.
 3. **Never publish without explicit user approval.** The approval message lists the exact slug, name, version, description, and file set. The user must say "yes" or equivalent. Silence is not consent.
 4. **Slug is renameable, with redirects.** On ClawHub, the Edit page lets you change the canonical slug under "Rename slug"; old slugs stay as 301 redirects. If the wrong slug ships, fix it via the Edit UI (and optionally publish a new version with the corrected content). **This is why stage 4 still matters** — the verify stage catches wrong content; the slug rename is a separate UI action.
-5. **Version semantics:** `1.0.0` first publish; `1.0.x` typo / wording fixes; `1.x.0` new content; `2.0.0` major restructure.
+5. **Version semantics:** `1.0.0` first publish; `1.0.x` typo / wording fixes; `1.x.0` new content; `2.0.0` major restructure. **One version number across all three platforms (ClawHub / SkillHub / GitHub), set to the highest existing one + 0.0.1** (科里 2026-08-31 确立): before publishing, check each platform's latest (ClawHub `inspect --versions`, SkillHub API, GitHub frontmatter), take the max, bump — never let platforms drift apart again.
 6. **Sanitize-over-include when uncertain.** When the audit flags a borderline item, default to remove or genericize. Adding later is easy; removing from a public release is reputation damage.
 7. **No silent re-publishes.** Every publish — including version bumps — produces an approval message. Re-publishing to fix a typo is a publish event, not a footnote.
 8. **Slug MUST be passed explicitly via `--slug`.** The `clawhub publish` CLI derives the slug from the **publish-folder's name** (`sanitizeSlug(basename(folder))`), NOT from `SKILL.md`'s `name` or `metadata.openclaw.slug`. If the folder name differs from the intended slug, the publish silently lands on the wrong slug — and if that slug already exists under another owner, ClawHub returns `AMBIGUOUS_SKILL_SLUG` and the install breaks for everyone. Always pass `--slug <canonical-slug>` even when the folder name looks right. (The Install-check stage below uses `--dir /tmp/verify-<slug>` precisely to avoid re-nesting on the user's machine.)
 9. **Detect and flatten nested source folders before publishing.** `clawhub install <slug> --dir .` wraps the downloaded skill in a slug-named subfolder, producing `slug/slug/SKILL.md` nesting on disk. Before publishing, resolve `SKILL.md` to the **inner** folder; never publish from the outer wrapper. In the Verify stage, assert `SKILL.md` sits at the publish-root (not nested one level down) and that `slug` equals the intended canonical slug.
+10. **Version numbers can be phantom-occupied.** When a platform version was published as "add missing files only" (SKILL.md untouched), the platform Latest leads the `version:` field inside SKILL.md (e.g. platform 1.1.3 / file says 1.1.1). Before any patch publish, run `clawhub inspect <slug> --versions` and target **platform Latest + 0.0.1** — never trust the version field inside the file. Same on SkillHub: "version already exists" on publish = phantom occupation; bump again.
+11. **SkillHub publish has stricter frontmatter validation than ClawHub.** Required: leading `---` delimiter, `slug`, `displayName`, `version`. Files downloaded via `clawhub install` often miss the leading `---` (stripped in ClawHub storage) and `slug`/`displayName` — backfill them before SkillHub publish. Consecutive SkillHub publishes trigger 429 rate limits; wait ~60s between publishes.
+12. **Delete `skill-card.md` from install-sourced publish folders.** ClawHub generates it and refuses publishes containing it. Publish with explicit `--slug/--name/--version/--changelog` (the CLI reads version from frontmatter when flags are absent, and phantom-occupied versions fail late).
+13. **GitHub mirror sync must push from the publish staging dir (`pub-*`), never from an install-sourced dir.** An install dir holds whatever the registry had (possibly a phantom-occupied old `version:` field without your patch), while the staging dir is the exact content you verified. Upsert-only: contents-API pushes add/update files but never delete removed ones — audit the repo file list after major restructures.
 
 ---
 
