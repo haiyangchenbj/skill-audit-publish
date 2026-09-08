@@ -3,9 +3,12 @@ name: "Skill Audit & Publish"
 slug: skill-audit-publish
 displayName: "Skill Audit & Publish"
 description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. Bundled helper script: scripts/sync_skill_to_github.js mirrors a publish folder to a GitHub repo via the GitHub Contents API using a user-supplied token (GITHUB_TOKEN/GITHUB_PAT env var); it only creates or updates files and never deletes anything. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
-version: "1.5.1"
+version: "1.5.2"
 metadata:
   openclaw:
+    permissions:
+      - "network: api.github.com — used only by the bundled sync helper when explicitly invoked"
+      - "credentials: GITHUB_TOKEN / GITHUB_PAT environment variables — read at runtime, never stored or logged"
     tags:
       - skill-publishing
       - pre-publish-audit
@@ -107,7 +110,7 @@ The transform stage will re-run these rules against the user's skill and present
 
 `scripts/sync_skill_to_github.js` — optional helper that mirrors a publish folder to a GitHub repo via the GitHub Contents API (PAT auth). Behavior, explicitly:
 
-- **Reads a token.** From the `GITHUB_TOKEN` / `GITHUB_PAT` environment variable, or as a fallback from `~/.workbuddy/connectors/default/tokens/github.txt` if that file exists. No token is embedded, transmitted anywhere except api.github.com, or logged.
+- **Reads a token from the environment only.** Requires the `GITHUB_TOKEN` / `GITHUB_PAT` environment variable; exits with an error if unset. No token is embedded in the skill, read from files, transmitted anywhere except api.github.com, or logged.
 - **Writes to GitHub only.** All network traffic goes to `api.github.com`. It creates or updates files (Contents API PUT) in the repo you name via `--owner` / `--repo`.
 - **Never deletes.** Upsert-only: files present on GitHub but absent from the local file list are left untouched; remote deletion must be done manually.
 - **Fully parameterized.** Owner, repo, local directory, branch, commit message, and file list all come from CLI flags (`--owner`, `--repo`, `--dir`, `--message`, `--branch`, `--files`) — no hardcoded user names or machine paths.
