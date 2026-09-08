@@ -1,26 +1,82 @@
-// 同步本地 skill-audit-publish 1.4.0 到 GitHub repo（PAT 直连 REST API）
-// 用法: node sync_skill_to_github.js
+#!/usr/bin/env node
+// Sync a local skill directory to a GitHub repo via the GitHub Contents API (PAT auth).
+// All machine-specific values come from CLI args / environment variables — nothing is hardcoded.
+//
+// Usage:
+//   node sync_skill_to_github.js --owner <github-user> [--repo <name>] [--dir <local-skill-dir>]
+//                                [--message <commit-message>] [--branch main]
+//                                [--files "SKILL.md,README.md,references/foo.md"]
+//
+// Environment:
+//   GITHUB_TOKEN or GITHUB_PAT — a GitHub personal access token (repo scope). Required.
+//   Fallback token file: ~/.workbuddy/connectors/default/tokens/github.txt (read only if env var is unset).
+//
+// Behavior notes (disclosed for transparency):
+//   - This script ONLY creates or updates files (contents API PUT). It never deletes
+//     remote files: files present on GitHub but absent from the local FILES list are
+//     left untouched. If you remove a file from the list, delete it on GitHub manually.
+
 const https = require("https");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
+const crypto = require("crypto");
 
-const PAT = fs.readFileSync(path.join(process.env.HOME || "C:\\Users\\haiyangchen", ".workbuddy", "connectors", "default", "tokens", "github.txt"), "utf8").trim();
-const OWNER = "haiyangchenbj";
-const REPO = "skill-audit-publish";
-const LOCAL_DIR = "C:\\Users\\haiyangchen\\.workbuddy\\skills\\skill-audit-publish";
-const BRANCH = "main";
-const COMMIT_MSG = "v1.4.0: add Release Type Gate (new-release / update / patch lanes, frozen list)";
+function parseArgs(argv) {
+  const out = {};
+  for (let i = 2; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith("--")) {
+      const key = a.slice(2);
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("--")) out[key] = true;
+      else { out[key] = next; i++; }
+    }
+  }
+  return out;
+}
 
-// 进 GitHub 的白名单文件（_meta.json 只进 ClawHub）
-const FILES = [
-  "SKILL.md",
-  "README.md",
-  "README_zh.md",
-  "sanitize.md",
-  "transform.md",
-  "verify.md",
-  "references/publish-rules.md",
-];
+const args = parseArgs(process.argv);
+
+// --- Resolve configuration (no hardcoded personal values) ---
+const TOKEN =
+  process.env.GITHUB_TOKEN ||
+  process.env.GITHUB_PAT ||
+  (() => {
+    const fallback = path.join(os.homedir(), ".workbuddy", "connectors", "default", "tokens", "github.txt");
+    if (fs.existsSync(fallback)) return fs.readFileSync(fallback, "utf8").trim();
+    return null;
+  })();
+
+const LOCAL_DIR = path.resolve(args.dir || process.cwd());
+const REPO = args.repo || path.basename(LOCAL_DIR);
+const OWNER = args.owner || process.env.GITHUB_OWNER || null;
+const BRANCH = args.branch || "main";
+const COMMIT_MSG = args.message || `sync ${REPO} from local`;
+
+if (!OWNER) {
+  console.error("ERROR: --owner <github-user> is required (or set GITHUB_OWNER).");
+  process.exit(1);
+}
+if (!TOKEN) {
+  console.error("ERROR: no GitHub token. Set GITHUB_TOKEN/GITHUB_PAT or provide the fallback token file.");
+  process.exit(1);
+}
+if (!fs.existsSync(path.join(LOCAL_DIR, "SKILL.md")) && !args.files) {
+  console.error(`ERROR: ${LOCAL_DIR} does not look like a skill dir (no SKILL.md). Pass --dir or --files.`);
+  process.exit(1);
+}
+
+// Default whitelist: top-level docs + one references level. Extend via --files (comma-separated).
+const FILES = (args.files
+  ? String(args.files).split(",").map((s) => s.trim()).filter(Boolean)
+  : [
+      "SKILL.md",
+      "README.md",
+      "README_zh.md",
+      "references/publish-rules.md",
+    ]
+).filter((f) => fs.existsSync(path.join(LOCAL_DIR, f)));
 
 function api(method, p, body) {
   return new Promise((resolve, reject) => {
@@ -32,7 +88,7 @@ function api(method, p, body) {
         method,
         headers: {
           "User-Agent": "skill-sync",
-          Authorization: `token ${PAT}`,
+          Authorization: `token ${TOKEN}`,
           Accept: "application/vnd.github+json",
           ...(data ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } : {}),
         },
@@ -52,23 +108,25 @@ function api(method, p, body) {
   });
 }
 
-// 计算本地文件的 git blob sha（与 GitHub contents API 返回的 sha 同口径）
+// Compute the local file's git blob sha (same scheme as the GitHub Contents API).
 function gitBlobSha(content) {
   const header = Buffer.from(`blob ${Buffer.byteLength(content)}\0`);
   const store = Buffer.concat([header, Buffer.from(content, "utf8")]);
-  return require("crypto").createHash("sha1").update(store).digest("hex");
+  return crypto.createHash("sha1").update(store).digest("hex");
 }
 
 async function main() {
-  // 1) 拿远端现有文件 sha
+  console.log(`sync ${LOCAL_DIR} -> github.com/${OWNER}/${REPO} (branch ${BRANCH})`);
+
+  // 1) Fetch remote file shas
   const remote = {};
   for (const f of FILES) {
     const r = await api("GET", `/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(f)}?ref=${BRANCH}`);
     if (r.status === 200) remote[f] = r.json.sha;
   }
-  console.log("remote files:", Object.keys(remote).length, "/", FILES.length);
+  console.log("remote files found:", Object.keys(remote).length, "/", FILES.length);
 
-  // 2) 比对本地内容 sha
+  // 2) Compare local content shas
   const toPush = [];
   for (const f of FILES) {
     const local = fs.readFileSync(path.join(LOCAL_DIR, f), "utf8");
@@ -82,7 +140,7 @@ async function main() {
   }
   if (!toPush.length) { console.log("nothing to push."); return; }
 
-  // 3) 逐文件 PUT
+  // 3) PUT each changed file (create/update only — no remote deletions)
   for (const { f, local, sha } of toPush) {
     const body = {
       message: `${COMMIT_MSG} [${f}]`,
