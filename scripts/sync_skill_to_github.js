@@ -9,7 +9,8 @@
 //
 // Environment:
 //   GITHUB_TOKEN or GITHUB_PAT — a GitHub personal access token (repo scope). Required.
-//   Fallback token file: ~/.workbuddy/connectors/default/tokens/github.txt (read only if env var is unset).
+//   The script exits with an error if neither variable is set; it never reads
+//   tokens from files and never transmits them anywhere except api.github.com.
 //
 // Behavior notes (disclosed for transparency):
 //   - This script ONLY creates or updates files (contents API PUT). It never deletes
@@ -18,7 +19,6 @@
 
 const https = require("https");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 
@@ -39,14 +39,7 @@ function parseArgs(argv) {
 const args = parseArgs(process.argv);
 
 // --- Resolve configuration (no hardcoded personal values) ---
-const TOKEN =
-  process.env.GITHUB_TOKEN ||
-  process.env.GITHUB_PAT ||
-  (() => {
-    const fallback = path.join(os.homedir(), ".workbuddy", "connectors", "default", "tokens", "github.txt");
-    if (fs.existsSync(fallback)) return fs.readFileSync(fallback, "utf8").trim();
-    return null;
-  })();
+const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || null;
 
 const LOCAL_DIR = path.resolve(args.dir || process.cwd());
 const REPO = args.repo || path.basename(LOCAL_DIR);
