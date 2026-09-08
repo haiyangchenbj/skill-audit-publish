@@ -36,6 +36,18 @@
 "发布 skill ~/.workbuddy/skills/my-skill@1.2.0"
 ```
 
+## 捆绑脚本
+
+`scripts/sync_skill_to_github.js` — 可选辅助脚本，把 publish 目录镜像同步到 GitHub 仓库（Contents API）。
+
+- Token：从 `GITHUB_TOKEN` / `GITHUB_PAT` 环境变量读取（兜底：`~/.workbuddy/connectors/default/tokens/github.txt`）。不内置、不打印日志。
+- 网络：仅访问 `api.github.com`。只创建/更新文件（PUT），**从不删除**远端文件。
+- 全参数化：`--owner`、`--repo`、`--dir`、`--message`、`--branch`、`--files`。无硬编码路径或用户名。
+
+```bash
+node scripts/sync_skill_to_github.js --owner <you> --repo <skill-repo> --dir ./publish-my-skill
+```
+
 ## License
 
 MIT
