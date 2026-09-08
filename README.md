@@ -37,6 +37,18 @@ Complements `skill-design-guide` (design-time) with publish-time workflow.
 "publish skill ~/.workbuddy/skills/my-skill@1.2.0"
 ```
 
+## Bundled Scripts
+
+`scripts/sync_skill_to_github.js` — optional helper that mirrors a publish folder to a GitHub repo via the Contents API.
+
+- Token: read from `GITHUB_TOKEN` / `GITHUB_PAT` env var (fallback: `~/.workbuddy/connectors/default/tokens/github.txt`). Never embedded or logged.
+- Network: talks to `api.github.com` only. Creates/updates files (PUT); **never deletes** anything.
+- Fully parameterized: `--owner`, `--repo`, `--dir`, `--message`, `--branch`, `--files`. No hardcoded paths or usernames.
+
+```bash
+node scripts/sync_skill_to_github.js --owner <you> --repo <skill-repo> --dir ./publish-my-skill
+```
+
 ## License
 
 MIT
