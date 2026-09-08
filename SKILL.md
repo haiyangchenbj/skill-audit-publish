@@ -2,8 +2,8 @@
 name: "Skill Audit & Publish"
 slug: skill-audit-publish
 displayName: "Skill Audit & Publish"
-description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
-version: "1.5.0"
+description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. Bundled helper script: scripts/sync_skill_to_github.js mirrors a publish folder to a GitHub repo via the GitHub Contents API using a user-supplied token (GITHUB_TOKEN/GITHUB_PAT env var); it only creates or updates files and never deletes anything. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
+version: "1.5.1"
 metadata:
   openclaw:
     tags:
@@ -100,6 +100,19 @@ The transform stage will re-run these rules against the user's skill and present
 11. **SkillHub publish has stricter frontmatter validation than ClawHub.** Required: leading `---` delimiter, `slug`, `displayName`, `version`. Files downloaded via `clawhub install` often miss the leading `---` (stripped in ClawHub storage) and `slug`/`displayName` — backfill them before SkillHub publish. Consecutive SkillHub publishes trigger 429 rate limits; wait ~60s between publishes.
 12. **Delete `skill-card.md` from install-sourced publish folders.** ClawHub generates it and refuses publishes containing it. Publish with explicit `--slug/--name/--version/--changelog` (the CLI reads version from frontmatter when flags are absent, and phantom-occupied versions fail late).
 13. **GitHub mirror sync must push from the publish staging dir (`pub-*`), never from an install-sourced dir.** An install dir holds whatever the registry had (possibly a phantom-occupied old `version:` field without your patch), while the staging dir is the exact content you verified. Upsert-only: contents-API pushes add/update files but never delete removed ones — audit the repo file list after major restructures.
+
+---
+
+## Bundled scripts (external side effects, disclosed)
+
+`scripts/sync_skill_to_github.js` — optional helper that mirrors a publish folder to a GitHub repo via the GitHub Contents API (PAT auth). Behavior, explicitly:
+
+- **Reads a token.** From the `GITHUB_TOKEN` / `GITHUB_PAT` environment variable, or as a fallback from `~/.workbuddy/connectors/default/tokens/github.txt` if that file exists. No token is embedded, transmitted anywhere except api.github.com, or logged.
+- **Writes to GitHub only.** All network traffic goes to `api.github.com`. It creates or updates files (Contents API PUT) in the repo you name via `--owner` / `--repo`.
+- **Never deletes.** Upsert-only: files present on GitHub but absent from the local file list are left untouched; remote deletion must be done manually.
+- **Fully parameterized.** Owner, repo, local directory, branch, commit message, and file list all come from CLI flags (`--owner`, `--repo`, `--dir`, `--message`, `--branch`, `--files`) — no hardcoded user names or machine paths.
+
+The skill's five-stage pipeline itself never touches the network beyond `clawhub publish` / `clawhub install`; the sync script is opt-in and only runs when explicitly invoked.
 
 ---
 
