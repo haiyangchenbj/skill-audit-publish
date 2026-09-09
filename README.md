@@ -4,13 +4,14 @@ Audit, clean, and publish agent skills to ClawHub and GitHub. Works with any SKI
 
 Complements `skill-design-guide` (design-time) with publish-time workflow.
 
-**Version**: v1.0.2 (2026-07-15)
+**Version**: v1.5.3 (2026-09-09)
 
 > ⚠️ **Publish has external side effects.** `audit` mode is read-only. `publish` mode
-> transmits the cleaned skill contents to ClawHub and GitHub (public services) and may
-> delete files in the remote GitHub repo. It never modifies your local files, and it only
-> runs after an audit and your explicit confirmation of the file list, target repos, and
-> version. Treat everything you publish as publicly visible.
+> transmits the cleaned skill contents to ClawHub and GitHub (public services). The bundled
+> sync helper only creates or updates files — it never deletes anything from your repos or
+> your machine, and it never modifies your local files. Publishing runs only after an audit
+> and your explicit confirmation of the file list, target repos, and version. Treat
+> everything you publish as publicly visible.
 
 ## Modes
 
