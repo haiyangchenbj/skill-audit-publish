@@ -1,6 +1,6 @@
 ## Description:
 
-Audit-first pipeline for publishing OpenClaw skills to ClawHub with sanitization, verification, explicit approval, and install-check steps before release.
+Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references.
 
 This skill is ready for commercial/non-commercial use.
 
@@ -14,7 +14,7 @@ MIT-0
 
 ## Use Case:
 
-Developers and skill authors use this skill to prepare OpenClaw skills for public ClawHub release by auditing content, cleaning sensitive material, confirming publish metadata, and validating the installed result.
+Developers and skill publishers use this skill to audit, sanitize, package, publish, and install-check SKILL.md-based OpenClaw skills for ClawHub and optional GitHub mirroring.
 
 ### Deployment Geography for Use:
 
@@ -22,39 +22,35 @@ Global
 
 ## Known Risks and Mitigations:
 
-Risk: Publishing or GitHub sync can expose cleaned skill contents to public services.
+Risk: The bundled GitHub sync helper can upload files outside the intended publish folder when unsafe file paths are supplied.
 
-Mitigation: Use audit-only mode until the slug, version, destination, and file list have been reviewed and explicitly approved.
+Mitigation: Inspect the exact --files list, avoid absolute paths and ../ entries, run from a clean staging directory, and add path-containment checks before providing a GitHub token.
 
-Risk: The optional GitHub sync helper can create or update files in the configured repository when run with a GitHub token.
+Risk: Publish mode can transmit cleaned skill contents to public ClawHub and GitHub services using user-provided credentials.
 
-Mitigation: Run the helper only with an approved repository, branch, and file list; provide tokens through environment variables and review remote file state after major restructures.
-
-Risk: Unsafe file selections such as absolute paths, parent-directory traversal, or symlinked content can publish material outside the intended skill package.
-
-Mitigation: Use relative, reviewed file lists from a publish staging folder and avoid absolute paths, '..' components, and symlinks.
+Mitigation: Run audit mode first, confirm the file list and version explicitly, and treat all published content as public before invoking publish or GitHub sync commands.
 
 ## Reference(s):
 
-- [ClawHub Skill Listing](https://clawhub.ai/haiyangchenbj/skills/skill-audit-publish)
-- [Publish Rules for ClawHub & GitHub](references/publish-rules.md)
-- [README](README.md)
-- [Sanitization Checklist](sanitize.md)
-- [Verification Workflow](verify.md)
+- [ClawHub skill page](https://clawhub.ai/haiyangchenbj/skills/skill-audit-publish)
+- [Publish Rules for ClawHub & GitHub](artifact/references/publish-rules.md)
+- [Sanitize checklist](artifact/sanitize.md)
+- [Transform workflow](artifact/transform.md)
+- [Verify workflow](artifact/verify.md)
 
 ## Skill Output:
 
 **Output Type(s):** [text, markdown, code, shell commands, configuration, guidance]
 
-**Output Format:** [Markdown guidance with structured checklists, approval text, file outputs, and inline shell commands]
+**Output Format:** [Markdown guidance with file manifests, approval text, shell commands, and generated skill files]
 
 **Output Parameters:** [1D]
 
-**Other Properties Related to Output:** [Produces a publish folder, rewritten skill metadata, a file manifest, an approval message, and optional publish or GitHub sync commands.]
+**Other Properties Related to Output:** [May produce a publish folder containing SKILL.md, FILES.txt, supporting markdown files, _meta.json, and an approval summary before any publish action.]
 
 ## Skill Version(s):
 
-1.5.3 (source: frontmatter, release evidence)
+1.5.4 (source: server release metadata and SKILL.md frontmatter)
 
 ## Ethical Considerations:
 
