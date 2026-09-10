@@ -52,7 +52,7 @@ if (!OWNER) {
   process.exit(1);
 }
 if (!TOKEN) {
-  console.error("ERROR: no GitHub token. Set GITHUB_TOKEN/GITHUB_PAT or provide the fallback token file.");
+  console.error("ERROR: no GitHub token. Set the GITHUB_TOKEN or GITHUB_PAT environment variable (credentials are read from the environment only, never from files).");
   process.exit(1);
 }
 if (!fs.existsSync(path.join(LOCAL_DIR, "SKILL.md")) && !args.files) {
