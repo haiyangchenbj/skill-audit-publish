@@ -3,7 +3,7 @@ name: "Skill Audit & Publish"
 slug: skill-audit-publish
 displayName: "Skill Audit & Publish"
 description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. Bundled helper script: scripts/sync_skill_to_github.js mirrors a publish folder to a GitHub repo via the GitHub Contents API using a user-supplied token (GITHUB_TOKEN/GITHUB_PAT env var); it only creates or updates files and never deletes anything. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
-version: "1.5.5"
+version: "1.5.6"
 metadata:
   openclaw:
     permissions:
@@ -67,7 +67,7 @@ Nothing leaves the local publish folder until the user replies "yes / publish / 
 | 2. **Transform** | Re-structured `SKILL.md` (frontmatter + body) + extracted auxiliaries | Diff shown to user |
 | 3. **Sanitize (the audit)** | `sanitize.md` checklist run: PII / credentials / model-specific refs / internal paths / dangerous patterns; each item marked `removed` / `genericized` / `kept-with-reason` | User reviews every kept-with-reason item |
 | 4. **Verify** | Approval message: slug, name, version, description, file list, sanitization confirmation, sample of sanitized text | **Explicit user approval** |
-| 5. **Publish + install-check** | `npx clawhub publish` then `npx clawhub install <slug> --dir /tmp/verify` to confirm the published version is installable and matches the local copy | Success message reported back to user |
+| 5. **Publish + install-check** | `clawhub publish` then `clawhub install <slug> --dir /tmp/verify` to confirm the published version is installable and matches the local copy. Use a pinned or locally installed CLI — unpinned `npx clawhub` resolves a mutable third-party package at run time (supply-chain risk) | Success message reported back to user |
 
 The audit (stage 3) is the differentiator. Other publish skills hand you a `clawhub publish` command; this one walks the content through a structured PII / secret / model-reference scan first and refuses to skip the scan if the user has not reviewed the keep-list.
 
@@ -102,7 +102,10 @@ The transform stage will re-run these rules against the user's skill and present
 10. **Version numbers can be phantom-occupied.** When a platform version was published as "add missing files only" (SKILL.md untouched), the platform Latest leads the `version:` field inside SKILL.md (e.g. platform 1.1.3 / file says 1.1.1). Before any patch publish, run `clawhub inspect <slug> --versions` and target **platform Latest + 0.0.1** — never trust the version field inside the file. Same on SkillHub: "version already exists" on publish = phantom occupation; bump again.
 11. **SkillHub publish has stricter frontmatter validation than ClawHub.** Required: leading `---` delimiter, `slug`, `displayName`, `version`. Files downloaded via `clawhub install` often miss the leading `---` (stripped in ClawHub storage) and `slug`/`displayName` — backfill them before SkillHub publish. Consecutive SkillHub publishes trigger 429 rate limits; wait ~60s between publishes.
 12. **Delete `skill-card.md` from install-sourced publish folders.** ClawHub generates it and refuses publishes containing it. Publish with explicit `--slug/--name/--version/--changelog` (the CLI reads version from frontmatter when flags are absent, and phantom-occupied versions fail late).
-13. **GitHub mirror sync must push from the publish staging dir (`pub-*`), never from an install-sourced dir.** An install dir holds whatever the registry had (possibly a phantom-occupied old `version:` field without your patch), while the staging dir is the exact content you verified. Upsert-only: contents-API pushes add/update files but never delete removed ones — audit the repo file list after major restructures.
+13. **On Windows, pass Windows paths to `clawhub publish` / `clawhub install`.** Under Git Bash a `/c/Users/...` path fails with `Error: Path must be a folder`; the same command with `C:\Users\...` succeeds. This is not a permissions or install problem — retry with the Windows form before concluding anything else. (Verified 2026-09-11.)
+14. **`inspect`'s table view is cached; `--json` is authoritative.** After a publish the table can keep showing the previous `Latest` for several minutes. Read `inspect <slug> --json` → `latestVersion.version` and `skill.tags.latest` instead. Do not re-publish because the table looks stale, and do not poll with long sleeps — one JSON read settles it. (Verified 2026-09-11.)
+15. **GitHub mirror sync must push from the publish staging dir (`pub-*`), never from an install-sourced dir.** An install dir holds whatever the registry had (possibly a phantom-occupied old `version:` field without your patch), while the staging dir is the exact content you verified. Upsert-only: contents-API pushes add/update files but never delete removed ones — audit the repo file list after major restructures.
+16. **Use a pinned or locally installed `clawhub` CLI, not unpinned `npx clawhub`.** Unpinned `npx` resolves the latest third-party package at run time — a supply-chain risk for a command that reads your token and uploads content. Install once (`npm i -g clawhub`) and invoke the reviewed local binary, or pin the version (`npx clawhub@<version>`).
 
 ---
 
@@ -114,6 +117,7 @@ The transform stage will re-run these rules against the user's skill and present
 - **Writes to GitHub only.** All network traffic goes to `api.github.com`. It creates or updates files (Contents API PUT) in the repo you name via `--owner` / `--repo`.
 - **Never deletes.** Upsert-only: files present on GitHub but absent from the local file list are left untouched; remote deletion must be done manually.
 - **Fully parameterized.** Owner, repo, local directory, branch, commit message, and file list all come from CLI flags (`--owner`, `--repo`, `--dir`, `--message`, `--branch`, `--files`) — no hardcoded user names or machine paths.
+- **Path containment (fail-closed).** Every `--files` entry must resolve inside the local directory: absolute paths, `..` components, symlinked path segments, and any path resolving outside it are rejected with an error before anything is read or uploaded.
 
 The skill's five-stage pipeline itself never touches the network beyond `clawhub publish` / `clawhub install`; the sync script is opt-in and only runs when explicitly invoked.
 
@@ -144,7 +148,7 @@ User says: "I want to publish my running-coach skill to ClawHub."
    - Sanitization: PII ✓, credentials ✓, model-specific refs ✓, internal paths ✓, dangerous patterns ✓
    - Kept-with-reason: 1
    User: "yes".
-5. **Publish + install-check** — agent runs `npx clawhub publish ./publish-running-coach --slug running-coach --name "Running Coach" --version 1.2.0`, then `npx clawhub install running-coach --dir /tmp/verify-running-coach`, confirms files match, reports `running-coach@1.2.0 published ✓`.
+5. **Publish + install-check** — agent runs `clawhub publish ./publish-running-coach --slug running-coach --name "Running Coach" --version 1.2.0`, then `clawhub install running-coach --dir /tmp/verify-running-coach`, confirms files match, reports `running-coach@1.2.0 published ✓`.
 
 ---
 
