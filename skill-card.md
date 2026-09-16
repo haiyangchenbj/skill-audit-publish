@@ -54,7 +54,7 @@ Mitigation: Provide credentials only through GITHUB_TOKEN or GITHUB_PAT environm
 
 ## Skill Version(s):
 
-1.5.6 (source: server release evidence and SKILL.md frontmatter)
+1.5.7 (source: server release evidence and SKILL.md frontmatter)
 
 ## Ethical Considerations:
 
