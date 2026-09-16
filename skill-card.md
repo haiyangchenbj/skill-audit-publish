@@ -1,6 +1,6 @@
 ## Description:
 
-Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references.
+Skill Audit & Publish guides agents through an audit-first workflow for sanitizing, verifying, publishing, and install-checking OpenClaw skills on ClawHub.
 
 This skill is ready for commercial/non-commercial use.
 
@@ -14,7 +14,7 @@ MIT-0
 
 ## Use Case:
 
-Developers and skill publishers use this skill to audit, sanitize, package, publish, and install-check SKILL.md-based OpenClaw skills for ClawHub and optional GitHub mirroring.
+Developers and skill maintainers use this skill to prepare SKILL.md-based OpenClaw skills for public release. It supports pre-publish auditing, personal-data and secret checks, user approval gates, ClawHub publishing, optional GitHub mirroring, and post-publish install verification.
 
 ### Deployment Geography for Use:
 
@@ -22,35 +22,39 @@ Global
 
 ## Known Risks and Mitigations:
 
-Risk: The bundled GitHub sync helper can upload files outside the intended publish folder when unsafe file paths are supplied.
+Risk: The GitHub sync helper can be steered to upload files outside the intended publish folder if --files values come from untrusted input.
 
-Mitigation: Inspect the exact --files list, avoid absolute paths and ../ entries, run from a clean staging directory, and add path-containment checks before providing a GitHub token.
+Mitigation: Enforced in code (fail-closed): absolute paths, ".." components, symlinked path segments, and any entry resolving outside the local skill directory are rejected before anything is read or uploaded. Use a manually checked file list from the publish staging folder.
 
-Risk: Publish mode can transmit cleaned skill contents to public ClawHub and GitHub services using user-provided credentials.
+Risk: Publish mode and optional GitHub mirroring transmit cleaned skill contents to public services.
 
-Mitigation: Run audit mode first, confirm the file list and version explicitly, and treat all published content as public before invoking publish or GitHub sync commands.
+Mitigation: Run the sanitization checklist and require explicit user approval of the slug, version, description, and file list before publishing.
+
+Risk: The optional GitHub sync helper requires a GitHub token at runtime.
+
+Mitigation: Provide credentials only through GITHUB_TOKEN or GITHUB_PAT environment variables, keep token values out of files and logs, and use the least privilege needed for the target repository.
 
 ## Reference(s):
 
-- [ClawHub skill page](https://clawhub.ai/haiyangchenbj/skills/skill-audit-publish)
-- [Publish Rules for ClawHub & GitHub](artifact/references/publish-rules.md)
-- [Sanitize checklist](artifact/sanitize.md)
-- [Transform workflow](artifact/transform.md)
-- [Verify workflow](artifact/verify.md)
+- [ClawHub Skill Page](https://clawhub.ai/haiyangchenbj/skills/skill-audit-publish)
+- [README](README.md)
+- [Sanitize Checklist](sanitize.md)
+- [Verification Workflow](verify.md)
+- [Publish Rules for ClawHub and GitHub](references/publish-rules.md)
 
 ## Skill Output:
 
-**Output Type(s):** [text, markdown, code, shell commands, configuration, guidance]
+**Output Type(s):** [text, markdown, code, shell commands, configuration, files, guidance]
 
-**Output Format:** [Markdown guidance with file manifests, approval text, shell commands, and generated skill files]
+**Output Format:** [Markdown guidance with command snippets and generated skill files]
 
 **Output Parameters:** [1D]
 
-**Other Properties Related to Output:** [May produce a publish folder containing SKILL.md, FILES.txt, supporting markdown files, _meta.json, and an approval summary before any publish action.]
+**Other Properties Related to Output:** [May include a local publish folder, approval message, ClawHub publish command, optional GitHub sync command, and verification checklist.]
 
 ## Skill Version(s):
 
-1.5.4 (source: server release metadata and SKILL.md frontmatter)
+1.5.6 (source: server release evidence and SKILL.md frontmatter)
 
 ## Ethical Considerations:
 
