@@ -14,6 +14,9 @@
 //
 // Behavior notes (disclosed for transparency):
 //   - This script ONLY creates or updates files (contents API PUT). It never deletes
+//   - Path containment (fail-closed): --files entries must resolve inside LOCAL_DIR. Absolute
+//     paths, ".." components, and symlinked path segments are rejected (exit 1) before
+//     anything is read or uploaded.
 //     remote files: files present on GitHub but absent from the local FILES list are
 //     left untouched. If you remove a file from the list, delete it on GitHub manually.
 
@@ -61,7 +64,27 @@ if (!fs.existsSync(path.join(LOCAL_DIR, "SKILL.md")) && !args.files) {
 }
 
 // Default whitelist: top-level docs + one references level. Extend via --files (comma-separated).
-const FILES = (args.files
+// Path containment (fail-closed): every entry must resolve inside LOCAL_DIR — absolute paths,
+// ".." components, symlinked segments, and escapes are rejected before anything is read.
+function assertContained(rel) {
+  const deny = (why) => {
+    console.error(`ERROR: path containment violation for "${rel}": ${why}. Nothing was read or uploaded.`);
+    process.exit(1);
+  };
+  if (path.isAbsolute(rel)) deny("absolute paths are not allowed");
+  if (rel.split(/[\\/]+/).includes("..")) deny("'..' components are not allowed");
+  const target = path.resolve(path.join(LOCAL_DIR, rel));
+  if (target !== LOCAL_DIR && !target.startsWith(LOCAL_DIR + path.sep)) deny("resolves outside LOCAL_DIR");
+  let probe = LOCAL_DIR;
+  for (const seg of rel.split(/[\\/]+/)) {
+    probe = path.join(probe, seg);
+    let st = null;
+    try { st = fs.lstatSync(probe); } catch (e) { return; } // absent segment — handled by existsSync filter below
+    if (st.isSymbolicLink()) deny("symlinked path segments are not allowed");
+  }
+}
+
+const RAW_FILES = (args.files
   ? String(args.files).split(",").map((s) => s.trim()).filter(Boolean)
   : [
       "SKILL.md",
@@ -69,7 +92,9 @@ const FILES = (args.files
       "README_zh.md",
       "references/publish-rules.md",
     ]
-).filter((f) => fs.existsSync(path.join(LOCAL_DIR, f)));
+);
+RAW_FILES.forEach(assertContained);
+const FILES = RAW_FILES.filter((f) => fs.existsSync(path.join(LOCAL_DIR, f)));
 
 function api(method, p, body) {
   return new Promise((resolve, reject) => {
