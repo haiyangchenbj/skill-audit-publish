@@ -48,7 +48,7 @@ User should confirm:
 
 Only after approval:
 ```bash
-npx clawhub publish <folder> \
+clawhub publish <folder> \
   --slug "<slug>" \
   --name "<name>" \
   --version "<version>"
@@ -58,7 +58,7 @@ npx clawhub publish <folder> \
 
 After publishing:
 1. Confirm success message
-2. Optionally install to verify: `npx clawhub install <slug> --dir /tmp/verify`
+2. Optionally install to verify: `clawhub install <slug> --dir /tmp/verify`
 3. Report to user: "Published [slug]@[version]"
 
 ## If Something Goes Wrong
