@@ -9,8 +9,9 @@
 //
 // Environment:
 //   GITHUB_TOKEN or GITHUB_PAT — a GitHub personal access token (repo scope). Required.
-//   The script exits with an error if neither variable is set; it never reads
-//   tokens from files and never transmits them anywhere except api.github.com.
+//   The script exits with an error if neither variable is set. Credentials are
+//   consumed from the environment only — nothing credential-related is read from
+//   disk, and requests go nowhere except api.github.com.
 //
 // Behavior notes (disclosed for transparency):
 //   - This script ONLY creates or updates files (contents API PUT). It never deletes
