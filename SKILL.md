@@ -2,8 +2,8 @@
 name: "Skill Audit & Publish"
 slug: skill-audit-publish
 displayName: "Skill Audit & Publish"
-description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. A bundled sync helper (disclosed in the body below) mirrors a publish folder to a GitHub repo via the GitHub Contents API using environment-provided credentials only; it only creates or updates files and never deletes anything. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
-version: "1.5.7"
+description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub, SkillHub, and GitHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. A bundled sync helper (disclosed in the body below) mirrors a publish folder to a GitHub repo via the GitHub Contents API using environment-provided credentials only; it only creates or updates files and never deletes anything. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
+version: "1.5.8"
 allowed-tools: execute_command, read_file, file_read, write_to_file, file_write
 metadata:
   openclaw:
@@ -124,9 +124,21 @@ The skill's five-stage pipeline itself never touches the network beyond `clawhub
 
 ---
 
+## Stage 5b — Publishing to SkillHub
+
+Stage 5 as described above covers ClawHub and GitHub. **SkillHub is the third platform in the unified-version rule, and it has no CLI** — the command-line helper that used to handle it is no longer shipped, so the upload is a direct `multipart/form-data` POST.
+
+Two things to know before you consider skipping it:
+
+- **There is no read API.** Every `GET` under `/api/v1/community/skills/*` returns 405. You cannot verify remotely whether a skill is already on SkillHub; use `clawhub inspect <slug> --versions` plus the GitHub mirror as side evidence.
+- **Skipping it is the most common way the unified-version rule breaks.** The skill lands on two platforms, the version registry drifts apart, and the next publish has to guess which number is authoritative.
+
+Load **`references/skillhub-publish.md`** during stage 5 for the endpoint, auth path, multipart shape, response codes, and the correct ordering of the three uploads.
+
 ## Reference files (load on demand)
 
 - `sanitize.md` — the full PII / credential / model-reference / dangerous-pattern checklist
+- `skillhub-publish.md` — the SkillHub upload (stage 5b): endpoint, multipart shape, response codes, no-read-API caveat
 - `transform.md` — how to re-structure any source into a GEO-optimized skill file
 - `verify.md` — the exact approval message template and post-publish install-check steps
 - `skill-card.md` — the long-form card used in skill registries (description, use case, risks, output)
@@ -171,7 +183,7 @@ A: `clawhub publish` is a one-shot upload. This skill puts the sanitize-audit (s
 
 ## 中文摘要
 
-Skill Audit & Publish 是把本地 OpenClaw skill 安全发布到 ClawHub 的五阶段管线：**Understand → Transform → Sanitize → Verify → Publish+Install-check**。核心差异点是把"清洗审计"和"用户显式确认"放在 `clawhub publish` 之前，避免把个人数据、密钥、模型专属引用误发到公共 registry。
+Skill Audit & Publish 是把本地 OpenClaw skill 安全发布到 ClawHub / SkillHub / GitHub 的三平台管线：**Understand → Transform → Sanitize → Verify → Publish+Install-check**（Publish 阶段内还含 SkillHub 上传，即 stage 5b）。核心差异点是把"清洗审计"和"用户显式确认"放在 `clawhub publish` 之前，避免把个人数据、密钥、模型专属引用误发到公共 registry。
 
 **适用场景**：用户要把本地 skill 发到 ClawHub、做发布前的 PII/密钥/模型引用审计、按 ClawHub 发布工作流操作、生成 publish-ready 版本。
 
