@@ -3,13 +3,15 @@ name: "Skill Audit & Publish"
 slug: skill-audit-publish
 displayName: "Skill Audit & Publish"
 description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub, SkillHub, and GitHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. A bundled sync helper (disclosed in the body below) mirrors a publish folder to a GitHub repo via the GitHub Contents API using environment-provided credentials only; it only creates or updates files and never deletes anything. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
-version: "1.5.8"
-allowed-tools: execute_command, read_file, file_read, write_to_file, file_write
+version: "1.5.9"
+allowed-tools: execute_command, read_file, file_read, write_to_file, file_write, env, network
 metadata:
   openclaw:
     permissions:
       - "network: api.github.com — used only by the bundled sync helper when explicitly invoked"
       - "credentials: GITHUB_TOKEN / GITHUB_PAT environment variables — read at runtime, never stored or logged"
+      - "network: api.skillhub.cn — used only by the stage 5b SkillHub upload when the user approves publishing"
+      - "credentials: the local SkillHub credential file (~/.skillhub/credentials.json, field user.token) read only during stage 5b to authenticate the upload — held in memory for that single request, never embedded in the skill, logged, or shipped in any package"
     tags:
       - skill-publishing
       - pre-publish-audit
@@ -101,7 +103,7 @@ The transform stage will re-run these rules against the user's skill and present
 8. **Slug MUST be passed explicitly via `--slug`.** The `clawhub publish` CLI derives the slug from the **publish-folder's name** (`sanitizeSlug(basename(folder))`), NOT from the skill file's name or slug fields. If the folder name differs from the intended slug, the publish silently lands on the wrong slug — and if that slug already exists under another owner, ClawHub returns `AMBIGUOUS_SKILL_SLUG` and the install breaks for everyone. Always pass `--slug <canonical-slug>` even when the folder name looks right. (The Install-check stage below uses `--dir /tmp/verify-<slug>` precisely to avoid re-nesting on the user's machine.)
 9. **Detect and flatten nested source folders before publishing.** `clawhub install <slug> --dir .` wraps the downloaded skill in a slug-named subfolder, producing a `slug/slug/` double-nested layout on disk (the skill file ends up two levels deep). Before publishing, resolve the skill file to the **inner** folder; never publish from the outer wrapper. In the Verify stage, assert the skill file sits at the publish-root (not nested one level down) and that `slug` equals the intended canonical slug.
 10. **Version numbers can be phantom-occupied.** When a platform version was published as "add missing files only" (the skill file untouched), the platform Latest leads the `version:` field inside the skill file (e.g. platform 1.1.3 / file says 1.1.1). Before any patch publish, run `clawhub inspect <slug> --versions` and target **platform Latest + 0.0.1** — never trust the version field inside the file. Same on SkillHub: "version already exists" on publish = phantom occupation; bump again.
-11. **SkillHub publish has stricter frontmatter validation than ClawHub.** Required: leading `---` delimiter, `slug`, `displayName`, `version`. Files downloaded via `clawhub install` often miss the leading `---` (stripped in ClawHub storage) and `slug`/`displayName` — backfill them before SkillHub publish. Consecutive SkillHub publishes trigger 429 rate limits; wait ~60s between publishes.
+11. **SkillHub publish has stricter frontmatter validation than ClawHub.** Required: leading `---` delimiter, `slug`, `displayName`, `version`. Files downloaded via `clawhub install` often miss the leading `---` (stripped in ClawHub storage) and `slug`/`displayName` — backfill them before SkillHub publish. Consecutive SkillHub publishes trigger 429 rate limits; wait ~90s between publishes (a single 90 s backoff has been the reliable fix in practice; 20 s retries can fail repeatedly).
 12. **Delete `skill-card.md` from install-sourced publish folders.** ClawHub generates it and refuses publishes containing it. Publish with explicit `--slug/--name/--version/--changelog` (the CLI reads version from frontmatter when flags are absent, and phantom-occupied versions fail late).
 13. **On Windows, pass Windows paths to `clawhub publish` / `clawhub install`.** Under Git Bash a `/c/Users/...` path fails with `Error: Path must be a folder`; the same command with `C:\Users\...` succeeds. This is not a permissions or install problem — retry with the Windows form before concluding anything else. (Verified 2026-09-11.)
 14. **`inspect`'s table view is cached; `--json` is authoritative.** After a publish the table can keep showing the previous `Latest` for several minutes. Read `inspect <slug> --json` → `latestVersion.version` and `skill.tags.latest` instead. Do not re-publish because the table looks stale, and do not poll with long sleeps — one JSON read settles it. (Verified 2026-09-11.)
@@ -114,13 +116,13 @@ The transform stage will re-run these rules against the user's skill and present
 
 **Bundled sync helper (see the bundled scripts/ directory)** — optional helper that mirrors a publish folder to a GitHub repo via the GitHub Contents API (PAT auth). Behavior, explicitly:
 
-- **Reads a token from the environment only.** Requires the `GITHUB_TOKEN` / `GITHUB_PAT` environment variable; exits with an error if unset. No token is embedded in the skill, read from files, transmitted anywhere except api.github.com, or logged.
+- **Reads a token from the environment only.** Requires the `GITHUB_TOKEN` / `GITHUB_PAT` environment variable; exits with an error if unset. No token is embedded in the skill, read from files, transmitted anywhere except api.github.com, or logged. (The stage 5b SkillHub upload reads a different credential from a local file — declared separately in the frontmatter permissions; it does not involve this helper.)
 - **Writes to GitHub only.** All network traffic goes to `api.github.com`. It creates or updates files (Contents API PUT) in the repo you name via `--owner` / `--repo`.
 - **Never deletes.** Upsert-only: files present on GitHub but absent from the local file list are left untouched; remote deletion must be done manually.
 - **Fully parameterized.** Owner, repo, local directory, branch, commit message, and file list all come from CLI flags (`--owner`, `--repo`, `--dir`, `--message`, `--branch`, `--files`) — no hardcoded user names or machine paths.
 - **Path containment (fail-closed).** Every `--files` entry must resolve inside the local directory: absolute paths, `..` components, symlinked path segments, and any path resolving outside it are rejected with an error before anything is read or uploaded.
 
-The skill's five-stage pipeline itself never touches the network beyond `clawhub publish` / `clawhub install`; the sync script is opt-in and only runs when explicitly invoked.
+The skill's five-stage pipeline itself never touches the network beyond `clawhub publish` / `clawhub install` and the stage 5b SkillHub upload; the sync script is opt-in and only runs when explicitly invoked.
 
 ---
 
@@ -131,6 +133,7 @@ Stage 5 as described above covers ClawHub and GitHub. **SkillHub is the third pl
 Two things to know before you consider skipping it:
 
 - **There is no read API.** Every `GET` under `/api/v1/community/skills/*` returns 405. You cannot verify remotely whether a skill is already on SkillHub; use `clawhub inspect <slug> --versions` plus the GitHub mirror as side evidence.
+- **Auth is a local credential file, read in memory only.** The upload authenticates with a Bearer token read from the SkillHub credential file (`~/.skillhub/credentials.json`, field `user.token`). The token is held in memory for that single request — never embedded in the skill, logged, or included in any published package.
 - **Skipping it is the most common way the unified-version rule breaks.** The skill lands on two platforms, the version registry drifts apart, and the next publish has to guess which number is authoritative.
 
 Load **`references/skillhub-publish.md`** during stage 5 for the endpoint, auth path, multipart shape, response codes, and the correct ordering of the three uploads.
