@@ -48,7 +48,7 @@ The file has no top-level `token` key; reading `d["token"]` yields null and prod
 | **201** | accepted — body carries `ok:true`, `version`, `fileCount`, `skillId`, `fingerprint`, and `pending` review/scan statuses |
 | 400 | frontmatter or payload validation failed |
 | 409 | slug tombstoned, or version already exists → bump and retry. **Never delete a `source=community` skill to force a republish** — the slug becomes an unrecoverable tombstone |
-| 429 | consecutive publishes rate-limited → wait ~60s |
+| 429 | consecutive publishes rate-limited → wait ~90s (a single 90 s backoff has been the reliable fix in practice; 20 s retries can fail repeatedly) |
 | 503 | transient → wait ~20s and retry once |
 
 ## Constraints
