@@ -42,7 +42,7 @@ Complements `skill-design-guide` (design-time) with publish-time workflow.
 
 `scripts/sync_skill_to_github.js` — optional helper that mirrors a publish folder to a GitHub repo via the Contents API.
 
-- Token: read from `GITHUB_TOKEN` / `GITHUB_PAT` env vars only; exits with an error if unset. Never embedded, read from files, or logged.
+- Token: read from `GITHUB_TOKEN` / `GITHUB_PAT` env vars only; exits with an error if unset. Never embedded, read from files, or logged. (The SkillHub upload stage reads a separate credential from a local file — declared in the skill's frontmatter permissions; it does not involve this helper.)
 - Network: talks to `api.github.com` only. Creates/updates files (PUT); **never deletes** anything.
 - Fully parameterized: `--owner`, `--repo`, `--dir`, `--message`, `--branch`, `--files`. No hardcoded paths or usernames.
 
