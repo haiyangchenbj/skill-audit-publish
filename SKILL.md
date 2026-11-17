@@ -3,7 +3,7 @@ name: "Skill Audit & Publish"
 slug: skill-audit-publish
 displayName: "Skill Audit & Publish"
 description: "Audit-first pipeline to publish an OpenClaw skill to ClawHub, SkillHub, and GitHub without leaking personal data, credentials, or model-specific references. Five stages — Sanitize, Transform, Verify, Publish, Install-check — with explicit user approval before every irreversible step. Use this when the user wants to publish a skill to ClawHub, sanitize a skill before publishing, run a pre-publish PII/secret audit, or follow the ClawHub publish workflow. A bundled sync helper (disclosed in the body below) mirrors a publish folder to a GitHub repo via the GitHub Contents API using environment-provided credentials only; it only creates or updates files and never deletes anything. Trigger phrases: 'publish to ClawHub', 'publish my skill', 'sanitize before publish', 'pre-publish checklist', 'clawhub publish command', 'upload a skill to clawhub'."
-version: "1.5.11"
+version: "1.5.12"
 allowed-tools: execute_command, read_file, file_read, write_to_file, file_write, env, network
 metadata:
   openclaw:
@@ -70,7 +70,7 @@ Nothing leaves the local publish folder until the user replies "yes / publish / 
 | 2. **Transform** | Re-structured skill file (frontmatter + body) + extracted auxiliaries | Diff shown to user |
 | 3. **Sanitize (the audit)** | `sanitize.md` checklist run: PII / credentials / model-specific refs / internal paths / dangerous patterns; each item marked `removed` / `genericized` / `kept-with-reason` | User reviews every kept-with-reason item |
 | 4. **Verify** | Approval message: slug, name, version, description, file list, sanitization confirmation, sample of sanitized text | **Explicit user approval** |
-| 5. **Publish + install-check** | `clawhub publish` then `clawhub install <slug> --dir /tmp/verify` to confirm the published version is installable and matches the local copy. Use a pinned or locally installed CLI — unpinned registry resolution pulls a mutable third-party package at run time (supply-chain risk) | Success message reported back to user |
+| 5. **Publish + install-check** | `clawhub publish` then `clawhub install <slug> --dir /tmp/verify-<slug>` to confirm the published version is installable and matches the local copy. Use a pinned or locally installed CLI — unpinned registry resolution pulls a mutable third-party package at run time (supply-chain risk) | Success message reported back to user |
 
 **Post-publish writeback (new, 2026-10-19):** after stage 5 succeeds, copy the approved staging package back over the local skill directory (exclude `_meta.json`) so the local mother never lags the platforms. An out-of-date mother causes version regressions on the next publish. Skip writeback only when the mother is intentionally ahead of the published version.
 
